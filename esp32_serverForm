@@ -1,0 +1,129 @@
+//Dimmer Christmas Tree
+
+#include <WiFi.h>
+#include <WebServer.h>
+
+
+const char *ssid = "--------";
+const char *password = "--------";
+WebServer Server(80);
+
+
+const int ledPin = 27;
+const int freq = 1000;
+const int ledChannel = 0;
+const int resolution = 8;
+int slow = 70;
+int stepp = 50;
+
+
+const char index_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE HTML><html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html {font-family: Arial; display: inline-block; text-align: center;}
+    h2 {font-size: 3.0rem;}
+    p {font-size: 3.0rem;}
+    body {max-width: 600px; margin:0px auto; padding-bottom: 25px;}
+    .switch {position: relative; display: inline-block; width: 120px; height: 68px} 
+    .switch input {display: none}
+    .slider {position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 34px}
+    .slider:before {position: absolute; content: ""; height: 52px; width: 52px; left: 8px; bottom: 8px; background-color: #fff; -webkit-transition: .4s; transition: .4s; border-radius: 68px}
+    input:checked+.slider {background-color: #2196F3}
+    input:checked+.slider:before {-webkit-transform: translateX(52px); -ms-transform: translateX(52px); transform: translateX(52px)}
+  </style>
+</head>
+<body>
+  <h2>LED Matrix Counter</h2>
+<form>
+  <label>input for time delay</label>
+  <input class="w3-input" type="text"id="Slow" name="Slow" value= "70" > <br>
+  <label>input for Step</label>
+  <input class="w3-input" type="text" id="Step" name="Step" value="50" ><br>
+  <input type="submit" value="Submit" onclick=\"icount(this)\">
+</form>
+  
+<script>function icount(element) {
+  var xhr = new XMLHttpRequest();
+  
+  xhr.open("GET", "/update?slow="+document.getElementById("Slow").innerHTML+"&Step="+document.getElementById("Step").innerHTML, true); }
+  xhr.send();
+  var x = document.getElementById("Slow").value;
+  document.getElementById("Slow").innerHTML =x;
+  
+   var y = = document.getElementById("Step").value ;
+   document.getElementById("Step").innerHTML =y;
+}</script>
+</body>
+</html>
+)rawliteral";
+
+void rootPage() {
+   
+   String content = String(index_html); 
+   Server.send(200, "text/html", content);
+    Serial.println("rootpage");
+    String inputMessage;
+    String inputParam;
+    String inputMessage2;
+      inputMessage = Server.arg("Slow");  
+      inputMessage2 = Server.arg("Step");
+
+    if (Server.arg("Slow")!=0 && Server.arg("Step")!=0) 
+    {
+        slow =inputMessage.toInt()-1;
+        stepp=inputMessage2.toInt()-1;
+        //digitalWrite(26,HIGH);  
+    }
+    else {
+      inputMessage = "No message sent";
+      inputParam = "none";
+      //digitalWrite(26,LOW);
+    }
+}
+
+void LED_DIM(int slow){
+ for(int dutyCycle = 0; dutyCycle <= 255; dutyCycle=dutyCycle+stepp){   
+    ledcWrite(ledChannel, dutyCycle);
+    delay(slow);
+  }
+  delay(500);
+  // decrease the LED brightness
+  for(int dutyCycle = 255; dutyCycle >= 0; dutyCycle=dutyCycle-stepp){
+    ledcWrite(ledChannel, dutyCycle);   
+    delay(slow);
+  }
+  delay(500);
+  
+}
+
+
+
+void setup() {
+  Serial.begin(115200);
+  // Module configuration
+  WiFi.begin(ssid,password);
+
+  while(WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println(WiFi.localIP());
+
+  Serial.println("Connected to the WiFi network");
+  Server.on("/", HTTP_GET, rootPage);
+  //Server.on("/update",HTTP_GET, update);
+
+  ledcSetup(ledChannel, freq, resolution);
+  ledcAttachPin(ledPin, ledChannel);  
+  pinMode(26,OUTPUT);
+  Server.begin();
+}
+
+
+void loop() {
+ Server.handleClient();
+
+  LED_DIM(slow);
+}
